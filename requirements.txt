@@ -3,3 +3,4 @@ tqdm
 numpy
 openpyxl
 pandas
+difflib
