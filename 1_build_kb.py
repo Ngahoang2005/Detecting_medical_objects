@@ -74,7 +74,7 @@ def main():
     
     # Đọc danh sách ICD-10
     df = pd.read_csv("data/icd10_top.csv")
-    diseases = df['TenBenh'].tolist()[:5]
+    diseases = df['TenBenh'].tolist()
     
     kb = {
         "distributions": {
