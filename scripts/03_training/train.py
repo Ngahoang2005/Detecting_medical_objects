@@ -13,6 +13,9 @@ def main():
         dtype=None,
         load_in_4bit=True,
     )
+    if tokenizer is None:
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained("unsloth/qwen2.5-7b-instruct-unsloth-bnb-4bit")
 
     model = FastLanguageModel.get_peft_model(
         model, r=16, target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
@@ -33,10 +36,13 @@ def main():
 
     dataset = dataset.map(formatting_prompts_func, batched=True)
 
-    # 4. Train
+    
     # 4. Train
     trainer = SFTTrainer(
-        model=model, train_dataset=dataset["train"], dataset_text_field="text",
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=dataset["train"], 
+        dataset_text_field="text",
         max_seq_length=2048,
         args=TrainingArguments(
             per_device_train_batch_size=4, 
