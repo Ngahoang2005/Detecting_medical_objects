@@ -33,7 +33,7 @@ def preview_mode():
             
             print(f"\n{'='*60}")
             print(f"📄 MẪU {success_count} | LOẠI VĂN BẢN: {meta['document_type']}")
-            print(f"📊 ĐỘ PHỨC TẠP: {meta['complexity_level']} bệnh nền")
+            print(f"📊 ĐỘ PHỨC TẠP: {meta['comorbidities_count']} bệnh nền")
             print(f"{'='*60}")
             print(f"[VĂN BẢN]:\n{result['text']}\n")
             
