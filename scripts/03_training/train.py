@@ -34,13 +34,22 @@ def main():
     dataset = dataset.map(formatting_prompts_func, batched=True)
 
     # 4. Train
+    # 4. Train
     trainer = SFTTrainer(
         model=model, train_dataset=dataset["train"], dataset_text_field="text",
         max_seq_length=2048,
         args=TrainingArguments(
-            per_device_train_batch_size=4, gradient_accumulation_steps=4,
-            max_steps=500, learning_rate=2e-4, fp16=True,
-            logging_steps=1, output_dir="models/outputs",
+            per_device_train_batch_size=4, 
+            gradient_accumulation_steps=4,
+            max_steps=500, 
+            learning_rate=2e-4,
+            
+            # SỬA TẠI ĐÂY:
+            fp16=False,   # Chuyển thành False
+            bf16=True,    # Chuyển thành True (Vì 4090 hỗ trợ bfloat16 cực tốt)
+            
+            logging_steps=1, 
+            output_dir="models/outputs",
         ),
     )
     trainer.train()

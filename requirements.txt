@@ -3,6 +3,7 @@ tqdm
 numpy
 openpyxl
 pandas
+torch
 difflib
 random
 matplotlib
