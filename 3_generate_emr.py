@@ -258,7 +258,7 @@ def main():
     print(f"🚀 BẮT ĐẦU CÀY DATA (Mục tiêu: {SAMPLES_PER_DISEASE} mẫu/bệnh)")
     
     # Test thử 3 bệnh đầu tiên. Chạy ổn thì đổi thành ALL_DISEASES
-    test_diseases = ALL_DISEASES[:3]
+    test_diseases = ALL_DISEASES
     
     for disease in tqdm(test_diseases, desc="Tiến trình tổng"):
         info = KB_DATA[disease]
