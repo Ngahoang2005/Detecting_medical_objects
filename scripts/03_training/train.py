@@ -24,9 +24,9 @@ def main():
 
     # 2. Load data
     dataset = load_dataset("json", data_files={
-        "train": "data/competition_ready/train_comp.jsonl"
-    })
-
+    "train": "data/competition_ready/train_comp.jsonl",
+    "test": "data/competition_ready/test_comp.jsonl" # Đây là tập validation
+})
     # 3. Formatting
     def formatting_prompts_func(examples):
         instructions = "Bạn là chuyên gia y tế. Trích xuất thực thể theo JSON."
@@ -42,6 +42,7 @@ def main():
         model=model,
         tokenizer=tokenizer,
         train_dataset=dataset["train"], 
+        eval_dataset=dataset["test"],
         dataset_text_field="text",
         max_seq_length=2048,
         args=TrainingArguments(
