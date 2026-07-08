@@ -76,6 +76,6 @@ if __name__ == "__main__":
     # Trỏ vào file 4 tiếng của bạn
     INPUT_PATH = "data/emr_dataset_master.jsonl"
     # LƯU RA FILE MỚI, KHÔNG GHI ĐÈ
-    OUTPUT_PATH = "data/emr_dataset_cleaned_final.jsonl" 
+    OUTPUT_PATH = "data/emr_cleaned_dataset.jsonl" 
     
     clean_and_analyze_dataset(INPUT_PATH, OUTPUT_PATH)
