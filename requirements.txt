@@ -8,3 +8,10 @@ random
 matplotlib
 seaborn
 underthesea
+torch 
+trl 
+peft 
+bitsandbytes 
+transformers 
+triton 
+unsloth
