@@ -9,34 +9,40 @@ from tqdm import tqdm
 # 1. CẤU HÌNH HỆ THỐNG & KHUNG VĂN BẢN
 # ==========================================
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5:7b"  # Khuyến nghị dùng bản 14b nếu đủ VRAM
-SAMPLES_PER_DISEASE = 10   # Số mẫu cho mỗi bệnh
+MODEL_NAME = "qwen2.5:7b"  # Nên dùng bản 14B nếu máy bạn đủ mạnh (12-16GB VRAM)
+SAMPLES_PER_DISEASE = 10
 
+# Phân bổ Cấu trúc và Độ nhiễu (Noise) sát thực tế
 DOCUMENT_TYPES = [
     {
-        "name": "Bệnh án khám vào viện",
-        "style": "Chia rõ các phần: [Lý do vào viện], [Bệnh sử - mô tả diễn biến chi tiết], [Khám lâm sàng], và [Cận lâm sàng].",
-        "base_length": "CHI TIẾT (Khoảng 2 đến 3 đoạn văn)."
+        "name": "Giấy ra viện (Discharge Summary)",
+        "style": "Hành chính, trang trọng, viết thành các đoạn văn xuôi dài.",
+        "base_length": "DÀI (2-3 đoạn văn).",
+        "noise_level": 0.15 # Rất chuẩn, ít viết tắt
     },
     {
-        "name": "Giấy ra viện",
-        "style": "Văn phong hành chính, tổng kết quá trình. Gồm: Tóm tắt bệnh án, Chẩn đoán, Phương pháp điều trị, Lời dặn.",
-        "base_length": "DÀI VÀ TOÀN DIỆN (Từ 2 đến 4 đoạn văn)."
+        "name": "Bệnh án khám vào viện",
+        "style": "Chia rõ: [Lý do vào viện], [Bệnh sử], [Khám lâm sàng], [Cận lâm sàng].",
+        "base_length": "CHI TIẾT.",
+        "noise_level": 0.35 # Có viết tắt thông dụng
     },
     {
         "name": "Ghi chú tiến triển hàng ngày (SOAP)",
-        "style": "Cấu trúc 4 phần: S (Chủ quan), O (Khách quan), A (Đánh giá), P (Kế hoạch).",
-        "base_length": "TRUNG BÌNH. Dùng gạch đầu dòng chi tiết cho từng mục."
+        "style": "TUYỆT ĐỐI tuân thủ 4 gạch đầu dòng: S (Triệu chứng bệnh nhân kể), O (Khám & Sinh hiệu), A (Chẩn đoán), P (Điều trị).",
+        "base_length": "TRUNG BÌNH, liệt kê gạch đầu dòng ngắn gọn.",
+        "noise_level": 0.55 # Bác sĩ viết nhanh cho nhau
     },
     {
         "name": "Phiếu khám Cấp cứu",
-        "style": "Văn phong khẩn trương. Tập trung ngay vào tình trạng nhập viện, sinh hiệu, và xử trí ban đầu.",
-        "base_length": "VỪA PHẢI (Khoảng 1 đến 2 đoạn). Nhịp độ nhanh, y khoa đặc."
+        "style": "Khẩn trương, dồn dập. Ghi nhận nhanh sinh hiệu, tình trạng và xử trí.",
+        "base_length": "NGẮN (1 đoạn).",
+        "noise_level": 0.65 
     },
     {
         "name": "Sổ tay ghi chú Điều dưỡng",
-        "style": "Ngôn ngữ thực dụng, vắn tắt. Chỉ liệt kê dấu hiệu sinh tồn và xác nhận thực hiện y lệnh.",
-        "base_length": "NGẮN GỌN (Khoảng 2 đến 4 dòng). Trực diện, không phân tích sâu."
+        "style": "Siêu vắn tắt, thực dụng. Ghi ngày giờ, sinh hiệu, tình trạng, y lệnh đã làm.",
+        "base_length": "CỰC NGẮN (2-3 dòng, không phân tích, không viết thành câu hoàn chỉnh).",
+        "noise_level": 0.85 # Viết tắt vô tội vạ, có lóng
     }
 ]
 
@@ -69,6 +75,7 @@ for k, v in ABBREVIATIONS.items():
 # 3. CÁC HÀM XỬ LÝ LÕI
 # ==========================================
 def get_noisy_variant(base_term, noise_prob):
+    """Bơm nhiễu đồng nghĩa/viết tắt theo tỷ lệ của loại văn bản"""
     term_lower = base_term.lower().strip()
     if term_lower in NOISE_ENGINE and random.random() < noise_prob:
         return random.choice(NOISE_ENGINE[term_lower])
@@ -86,33 +93,33 @@ def call_llm(prompt):
     except Exception as e:
         return None
 
+def generate_patient_vitals():
+    """Python tự sinh thông số y khoa (chống overfit)"""
+    age = random.randint(18, 90)
+    hr = random.randint(55, 130)
+    bp = f"{random.randint(90, 170)}/{random.randint(60, 100)}"
+    temp = round(random.uniform(36.0, 39.5), 1)
+    return f"Tuổi: {age}, Mạch: {hr} l/p, HA: {bp} mmHg, Nhiệt độ: {temp}°C"
+
 def generate_golden_sample(primary_disease, kb_info):
-    noise_prob = random.choice([0.2, 0.5, 0.8])
-    
-    # Lấy ngẫu nhiên Document Type
+    # Lấy ngẫu nhiên Document Type & Mức độ Nhiễu tương ứng
     doc_config = random.choice(DOCUMENT_TYPES)
+    noise_prob = doc_config["noise_level"]
     
     # ---------------------------------------------------------
-    # ĐỘNG CƠ ĐỘ PHỨC TẠP (COMPLEXITY ENGINE)
+    # COMPLEXITY ENGINE (Bệnh nền ngẫu nhiên)
     # ---------------------------------------------------------
-    # Sinh 0 đến 3 bệnh kèm theo (Tỷ lệ: 0: 40%, 1: 30%, 2: 20%, 3: 10%)
-    num_comorb = random.choices([0, 1, 2, 3], weights=[0.4, 0.3, 0.2, 0.1])[0]
+    num_comorb = random.choices([0, 1, 2], weights=[0.5, 0.3, 0.2])[0]
     comorbidities = []
     if num_comorb > 0:
-        available_diseases = [d for d in ALL_DISEASES if d != primary_disease]
-        comorbidities = random.sample(available_diseases, min(num_comorb, len(available_diseases)))
+        available = [d for d in ALL_DISEASES if d != primary_disease]
+        comorbidities = random.sample(available, min(num_comorb, len(available)))
     
-    complexity_level = len(comorbidities)
-    if complexity_level == 0:
-        complexity_instruction = "Bệnh cảnh ĐƠN GIẢN (chỉ 1 bệnh chính). Không cần viết quá dài dòng, đi thẳng vào trọng tâm."
-    elif complexity_level == 1:
-        complexity_instruction = "Bệnh cảnh TRUNG BÌNH (có 1 bệnh nền). Cần nhắc sơ qua bệnh nền nhưng tập trung xử lý bệnh chính."
-    else:
-        complexity_instruction = f"Bệnh cảnh PHỨC TẠP (có {complexity_level} bệnh nền). YÊU CẦU DÀNH THỜI GIAN PHÂN TÍCH sự tương tác của đa bệnh lý. Độ dài văn bản phải DÀI HƠN mức bình thường để phản ánh độ khó của ca bệnh."
     # ---------------------------------------------------------
-
+    # SUBSET SAMPLING (Thực thể ngẫu nhiên)
+    # ---------------------------------------------------------
     sym_raw = kb_info.get('symptoms', [])
-    symptoms = random.sample(sym_raw, max(1, int(len(sym_raw) * random.uniform(0.6, 0.9))))
+    symptoms = random.sample(sym_raw, max(1, int(len(sym_raw) * random.uniform(0.5, 0.8))))
     present_sym = [s for s in symptoms if random.random() >= 0.2]
     negated_sym = [s for s in symptoms if s not in present_sym]
     
@@ -130,26 +137,30 @@ def generate_golden_sample(primary_disease, kb_info):
     required_keywords = set()
     for lst in expected_entities.values(): required_keywords.update(lst)
 
-    input_str = f"- CHẨN ĐOÁN CHÍNH: {primary_disease}\n"
-    if comorbidities: input_str += f"- BỆNH NỀN / KÈM THEO: {', '.join(comorbidities)}\n"
-    if present_sym: input_str += f"- TRIỆU CHỨNG CÓ: {', '.join(present_sym)}\n"
-    if negated_sym: input_str += f"- TRIỆU CHỨNG KHÔNG CÓ: {', '.join(negated_sym)}\n"
-    if tests: input_str += f"- XÉT NGHIỆM: {', '.join(tests)}\n"
-    if drugs: input_str += f"- THUỐC: {', '.join(drugs)}\n"
+    vitals_str = generate_patient_vitals()
 
-    base_prompt = f"""Bạn là bác sĩ. Viết 1 bệnh án thuộc loại: {doc_config['name']}.
-Dựa trên thông tin cốt lõi sau:
+    # ---------------------------------------------------------
+    # PROMPT THÉP (NEGATIVE CONSTRAINTS)
+    # ---------------------------------------------------------
+    input_str = f"- HÀNH CHÍNH & SINH HIỆU BẮT BUỘC: {vitals_str}\n"
+    input_str += f"- CHẨN ĐOÁN CHÍNH: {primary_disease}\n"
+    if comorbidities: input_str += f"- BỆNH NỀN KÈM THEO: {', '.join(comorbidities)}\n"
+    if present_sym: input_str += f"- TRIỆU CHỨNG HIỆN CÓ: {', '.join(present_sym)}\n"
+    if negated_sym: input_str += f"- TRIỆU CHỨNG HOÀN TOÀN KHÔNG CÓ: {', '.join(negated_sym)}\n"
+    if tests: input_str += f"- XÉT NGHIỆM ĐÃ LÀM: {', '.join(tests)}\n"
+    if drugs: input_str += f"- THUỐC KÊ ĐƠN: {', '.join(drugs)}\n"
+
+    base_prompt = f"""Bạn là một BÁC SĨ LÂM SÀNG đang bận rộn. Viết 1 bệnh án loại: {doc_config['name']}.
+
+THÔNG TIN BẮT BUỘC PHẢI DÙNG CHÍNH XÁC:
 {input_str}
 
-YÊU CẦU VỀ VĂN PHONG VÀ ĐỘ DÀI:
-- Phong cách: {doc_config['style']}
-- Khung độ dài cơ bản: {doc_config['base_length']}
-- CHỈ ĐẠO ĐỘ PHỨC TẠP CA BỆNH: {complexity_instruction}
-
-LUẬT:
-1. KHÔNG thêm bệnh lý, triệu chứng, xét nghiệm hay hoạt chất mới.
-2. ĐƯỢC PHÉP thêm: Tuổi, giới tính, sinh hiệu (mạch, HA, nhiệt độ), liều lượng thuốc, và câu văn nối cho tự nhiên.
-3. BẮT BUỘC dùng chính xác các từ khóa y khoa đã cung cấp ở trên."""
+LUẬT THÉP (CẤM LÀM SAI):
+1. VĂN PHONG VÀ ĐỘ DÀI: {doc_config['style']} {doc_config['base_length']}
+2. KHÔNG tự sáng tạo thêm bệnh lý, triệu chứng, xét nghiệm hay thuốc ngoài danh sách trên.
+3. PHẢI BÊ NGUYÊN các con số (Tuổi, Mạch, HA, Nhiệt độ) vào văn bản. Không tự bịa số khác.
+4. TUYỆT ĐỐI KHÔNG DÙNG CÁC TỪ AI LẢM NHẢM: Cấm viết "Lưu ý:", "Ghi chú:", "Phân tích sự tương tác", "Bệnh án này được viết dựa trên", "Đánh giá toàn diện". Hãy trực tiếp ghi thông tin y khoa.
+5. Chỉ trả về nội dung bệnh án, không giải thích gì thêm."""
 
     raw_text = call_llm(base_prompt)
     if not raw_text: return None
@@ -163,13 +174,18 @@ LUẬT:
             found_in_raw.add(kw)
             
     missing_kws = required_keywords - found_in_raw
-    if len(missing_kws) > 1:
-        retry_prompt = base_prompt + f"\n\nBản nháp trước của bạn đã bỏ sót các từ sau: {', '.join(missing_kws)}. Hãy viết lại và đảm bảo có đủ các từ này."
+    if len(missing_kws) > 0: # Ép gắt: Thiếu 1 từ cũng bắt viết lại
+        retry_prompt = base_prompt + f"\n\nBản nháp trước của bạn ĐÃ BỎ SÓT các từ khóa y khoa này: {', '.join(missing_kws)}. Hãy viết lại và bắt buộc phải nhét các từ này vào."
         raw_text = call_llm(retry_prompt)
         if not raw_text: return None
 
+    # Lọc bỏ các câu AI lảm nhảm (Safety Fallback) nếu LLM vẫn cố tình sinh ra
+    raw_lines = raw_text.split('\n')
+    clean_lines = [line for line in raw_lines if not any(bad in line.lower() for bad in ["lưu ý:", "ghi chú:", "bệnh án này", "dựa trên thông tin", "theo yêu cầu"])]
+    raw_text = '\n'.join(clean_lines).strip()
+
     # ==========================================
-    # THUẬT TOÁN OFFSET CHỐNG CHỒNG LẤN
+    # THUẬT TOÁN OFFSET (LONGEST-MATCH CHỐNG CHỒNG LẤN)
     # ==========================================
     matches = []
     for ent_type, ent_list in expected_entities.items():
@@ -181,7 +197,7 @@ LUẬT:
                     "orig_text": m.group(), "type": ent_type, "normalized": ent_item
                 })
                 
-    # Ưu tiên chuỗi DÀI NHẤT
+    # Ưu tiên chuỗi DÀI NHẤT ("đau bụng dưới" thắng "đau bụng")
     matches = sorted(matches, key=lambda x: (-(x["end"] - x["start"])))
     
     occupied_spans = []
@@ -195,7 +211,7 @@ LUẬT:
     filtered_matches = sorted(filtered_matches, key=lambda x: x["start"])
     
     # ==========================================
-    # CẤY NHIỄU & GHI NHẬN OFFSET TUYỆT ĐỐI
+    # CẤY NHIỄU THEO DOCUMENT TYPE & GHI NHẬN OFFSET TUYỆT ĐỐI
     # ==========================================
     final_text = ""
     annotations = []
@@ -203,15 +219,15 @@ LUẬT:
     
     for m in filtered_matches:
         final_text += raw_text[curr_idx:m["start"]] 
-        noisy_entity = get_noisy_variant(m["orig_text"], noise_prob)
+        noisy_entity = get_noisy_variant(m["orig_text"], noise_prob) # Noise theo type
         
         start_offset = len(final_text)
         final_text += noisy_entity
         end_offset = len(final_text)
         
-        # KIỂM ĐỊNH TUYỆT ĐỐI BẢO CHỨNG NHÃN
+        # KIỂM ĐỊNH TUYỆT ĐỐI BẢO CHỨNG NHÃN (ASSERTION)
         if final_text[start_offset:end_offset] != noisy_entity:
-            print("⚠️ Lỗi trượt Offset! Hủy mẫu.")
+            # Nếu logic nối chuỗi bị sai, bỏ qua mẫu này để tránh hỏng dữ liệu train
             return None
             
         annotations.append({
@@ -225,7 +241,7 @@ LUẬT:
     return {
         "meta_data": {
             "document_type": doc_config['name'],
-            "complexity_level": complexity_level,
+            "noise_level": noise_prob,
             "comorbidities_count": num_comorb
         },
         "text": final_text, 
