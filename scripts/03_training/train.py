@@ -56,7 +56,7 @@ def main():
             
             logging_steps=1, 
             output_dir="models/outputs",
-            evaluation_strategy="steps",    # Đánh giá sau mỗi X bước
+            eval_strategy="steps",    # Đánh giá sau mỗi X bước
             eval_steps=50,                  # Cứ 50 bước thì check xem có dừng được không
             load_best_model_at_end=True,    # Tự động load bản model tốt nhất khi dừng
             metric_for_best_model="loss",   # Dừng khi loss trên tập valid không giảm nữa
