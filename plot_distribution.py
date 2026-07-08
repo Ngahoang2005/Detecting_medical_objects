@@ -1,50 +1,75 @@
 import json
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-def plot_word_count_distribution(file_path):
-    print(f"📊 Đang đọc dữ liệu từ {file_path}...")
+def terminal_histogram(file_path, bins=20):
+    print(f"⏳ Đang quét dữ liệu từ {file_path}...")
     lengths = []
     
-    # 1. Đọc và đếm số từ của từng mẫu
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
-                data = json.loads(line)
-                word_count = len(data['text'].split())
-                lengths.append(word_count)
+                try:
+                    text = json.loads(line)['text']
+                    lengths.append(len(text.split()))
+                except Exception:
+                    pass
     except FileNotFoundError:
-        print(f"❌ Không tìm thấy file: {file_path}")
+        print("❌ Không tìm thấy file!")
         return
 
     if not lengths:
-        print("⚠️ File trống hoặc không đọc được dữ liệu.")
+        print("⚠️ File trống!")
         return
 
-    avg_len = sum(lengths) / len(lengths)
+    # Sắp xếp để tính Percentile (Giá trị cực kỳ quan trọng khi Train NLP)
+    lengths.sort()
+    total = len(lengths)
+    min_val, max_val = lengths[0], lengths[-1]
+    avg_len = sum(lengths) / total
     
-    # 2. Cấu hình và vẽ biểu đồ
-    plt.figure(figsize=(12, 6))
+    p90 = lengths[int(total * 0.90)]
+    p95 = lengths[int(total * 0.95)]
+    p99 = lengths[int(total * 0.99)]
+
+    print("\n" + "="*60)
+    print(f"📊 THỐNG KÊ PHÂN PHỐI ĐỘ DÀI ({total} mẫu)")
+    print("="*60)
+    print(f" • Ngắn nhất : {min_val} từ")
+    print(f" • Dài nhất  : {max_val} từ")
+    print(f" • Trung bình: {avg_len:.1f} từ")
+    print("-" * 60)
+    print("🎯 ĐÁNH GIÁ RỦI RO CHIỀU DÀI CONTEXT (PERCENTILE):")
+    print(f" • 90% bệnh án ngắn hơn hoặc bằng : {p90} từ")
+    print(f" • 95% bệnh án ngắn hơn hoặc bằng : {p95} từ")
+    print(f" • 99% bệnh án ngắn hơn hoặc bằng : {p99} từ")
+    print("="*60)
+
+    # Vẽ biểu đồ ASCII
+    bin_width = (max_val - min_val) / bins
+    histogram = [0] * bins
     
-    # Dùng Seaborn vẽ Histogram kết hợp đường cong mật độ (KDE)
-    sns.histplot(lengths, bins=40, kde=True, color='#2c3e50', edgecolor='white')
+    for l in lengths:
+        index = int((l - min_val) / bin_width)
+        if index == bins: 
+            index -= 1
+        histogram[index] += 1
+        
+    max_freq = max(histogram)
+    max_bar_length = 40 # Độ dài tối đa của thanh biểu đồ
     
-    # Vẽ thêm đường kẻ đỏ đánh dấu mức Trung bình
-    plt.axvline(avg_len, color='#e74c3c', linestyle='dashed', linewidth=2, 
-                label=f'Trung bình ({avg_len:.1f} từ)')
-    
-    # Trang trí biểu đồ
-    plt.title('Phân phối Độ dài Văn bản (Tập dữ liệu Bệnh án EMR)', fontsize=16, pad=15)
-    plt.xlabel('Số lượng từ (Word Count)', fontsize=12)
-    plt.ylabel('Số lượng mẫu (Frequency)', fontsize=12)
-    plt.legend()
-    plt.grid(axis='y', alpha=0.3)
-    
-    plt.tight_layout()
-    print("✨ Đang hiển thị biểu đồ...")
-    plt.show()
+    print("\n📉 BIỂU ĐỒ HISTOGRAM (Số từ -> Số lượng mẫu):")
+    print("-" * 60)
+    for i in range(bins):
+        bin_start = min_val + i * bin_width
+        bin_end = min_val + (i + 1) * bin_width
+        count = histogram[i]
+        
+        # Tính toán chiều dài thanh Bar
+        bar_len = int((count / max_freq) * max_bar_length)
+        bar = "█" * bar_len
+        
+        print(f" [{bin_start:>3.0f} - {bin_end:>3.0f} từ] | {bar} ({count})")
+    print("-" * 60 + "\n")
 
 if __name__ == "__main__":
-    # Đảm bảo đường dẫn này trỏ đúng vào file SẠCH cuối cùng của bạn
-    DATA_PATH = "data/emr_dataset_cleaned_final.jsonl"
-    plot_word_count_distribution(DATA_PATH)
+    DATA_PATH = "data/emr_dataset_master.jsonl"
+    terminal_histogram(DATA_PATH)
