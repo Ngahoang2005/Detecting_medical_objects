@@ -15,7 +15,8 @@ with zipfile.ZipFile(zip_path, 'r') as zip_ref:
     zip_ref.extractall(extract_to)
 print(f"✅ Đã giải nén xong vào: {extract_to}")
 # Load model 1 lần duy nhất để tối ưu tốc độ
-model, tokenizer = FastLanguageModel.from_pretrained("models/final_model", local_files_only=True)
+#model, tokenizer = FastLanguageModel.from_pretrained("models/final_model", local_files_only=True)
+model, tokenizer = FastLanguageModel.from_pretrained("models/outputs/checkpoint-500", local_files_only=True)
 FastLanguageModel.for_inference(model)
 
 def extract_entities(text):
