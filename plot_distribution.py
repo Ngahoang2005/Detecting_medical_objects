@@ -4,7 +4,7 @@ import seaborn as sns
 
 def plot_word_count_distribution(file_path):
     print(f"📊 Đang đọc dữ liệu từ {file_path}...")
-     lengths = []
+    lengths = []
     
     # 1. Đọc và đếm số từ của từng mẫu
     try:
