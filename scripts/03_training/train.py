@@ -4,7 +4,7 @@ from trl import SFTTrainer
 from transformers import TrainingArguments
 from datasets import load_dataset
 import json
-
+from transformers import EarlyStoppingCallback
 def main():
     # 1. Load model 4090 friendly
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -56,8 +56,14 @@ def main():
             
             logging_steps=1, 
             output_dir="models/outputs",
+            evaluation_strategy="steps",    # Đánh giá sau mỗi X bước
+            eval_steps=50,                  # Cứ 50 bước thì check xem có dừng được không
+            load_best_model_at_end=True,    # Tự động load bản model tốt nhất khi dừng
+            metric_for_best_model="loss",   # Dừng khi loss trên tập valid không giảm nữa
+            greater_is_better=False,        # Loss càng thấp càng tốt
         ),
     )
+    trainer.add_callback(EarlyStoppingCallback(early_stopping_patience=3))
     trainer.train()
     model.save_pretrained("models/final_model")
     tokenizer.save_pretrained("models/final_model")
