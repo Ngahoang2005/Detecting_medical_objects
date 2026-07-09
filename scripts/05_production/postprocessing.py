@@ -11,21 +11,25 @@ os.makedirs(final_json_dir, exist_ok=True)
 
 print("--- BẮT ĐẦU POST-PROCESSING ---")
 
-def clean_and_map_positions(raw_text, entities):
+def clean_and_map_positions(raw_text, entities, filename):
     cleaned_entities = []
+    # Chuyển text gốc về chữ thường để dễ tìm kiếm
+    raw_text_lower = raw_text.lower()
     
     for ent in entities:
-        # Bỏ qua nếu LLM sinh lỗi không có key 'text' hoặc 'type'
         if 'text' not in ent or 'type' not in ent:
             continue
             
-        search_text = ent['text'].strip()
+        # Xóa dấu cách thừa và chuyển về chữ thường
+        search_text = str(ent['text']).strip()
+        search_text_lower = search_text.lower()
         
-        # 1. TÌM POSITION CHUẨN XÁC TRONG VĂN BẢN GỐC
-        start_idx = raw_text.find(search_text)
+        # 1. TÌM POSITION (Không phân biệt hoa/thường)
+        start_idx = raw_text_lower.find(search_text_lower)
         
-        # Nếu không tìm thấy text trong văn bản gốc (LLM ảo giác), thì bỏ qua luôn để tránh bị trừ điểm WER
         if start_idx == -1:
+            # IN RA ĐỂ DEBUG XEM NÓ ĐÃ VỨT CÁI GÌ
+            print(f"⚠️ {filename}: Đã vứt bỏ thực thể ảo giác -> '{search_text}'")
             continue 
             
         end_idx = start_idx + len(search_text)
@@ -43,13 +47,14 @@ def clean_and_map_positions(raw_text, entities):
             
         # 3. ĐÓNG GÓI THỰC THỂ CHUẨN
         cleaned_ent = {
-            "text": search_text,
+            "text": raw_text[start_idx:end_idx], # Lấy đúng text chữ hoa/thường từ bản gốc
             "type": ent['type'],
             "candidates": candidates,
             "assertions": assertions,
             "position": [start_idx, end_idx]
         }
         cleaned_entities.append(cleaned_ent)
+       
         
     return cleaned_entities
 
@@ -75,11 +80,12 @@ for filename in os.listdir(raw_json_dir):
         with open(json_path, 'r', encoding='utf-8') as f:
             raw_entities = json.load(f)
     except json.JSONDecodeError:
-        # Nếu LLM sinh lỗi cú pháp JSON, gán mảng rỗng để không bị sập toàn bộ chương trình
+        print(f"❌ {filename}: JSON bị gãy cú pháp từ LLM! Đã gán bằng mảng rỗng.")
         raw_entities = [] 
 
-    # Hậu xử lý
-    final_entities = clean_and_map_positions(raw_text, raw_entities)
+    # Hậu xử lý (Nhớ truyền thêm filename vào)
+    final_entities = clean_and_map_positions(raw_text, raw_entities, filename)
+
     
     # Lưu ra thư mục final
     final_out_path = os.path.join(final_json_dir, filename)
