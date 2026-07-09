@@ -10,7 +10,7 @@ os.makedirs(output_dir, exist_ok=True)
 
 print("--- 1. ĐANG LOAD MODEL VÀO VRAM ---")
 # Lưu ý: Nếu cậu chưa copy model sang final_model, hãy sửa thành "models/outputs/checkpoint-500"
-model, tokenizer = FastLanguageModel.from_pretrained("models/final_model", local_files_only=True)
+model, tokenizer = FastLanguageModel.from_pretrained("models/outputs/checkpoint-500", local_files_only=True)
 FastLanguageModel.for_inference(model)
 
 def extract_entities(text):
