@@ -3,8 +3,8 @@ import json
 from unsloth import FastLanguageModel
 
 # 1. Đường dẫn thư mục (Chỉ đích danh thư mục 'input' của cậu)
-input_dir = "input"
-output_dir = "output_json"
+input_dir = "data/temp_input"
+output_dir = "data/output_json"
 
 os.makedirs(output_dir, exist_ok=True)
 
