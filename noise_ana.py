@@ -34,7 +34,7 @@ def analyze_noise_with_llm(text_content):
 
 def main():
     # ĐÃ ĐỔI ĐẦU VÀO THÀNH FILE ZIP CỦA BẠN
-    zip_path = "input_turn2_vong1.zip" 
+    zip_path = "data/input_turn2_vong1.zip" 
     output_report = "noise_report.json"
     
     total_report = []
