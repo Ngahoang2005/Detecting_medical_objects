@@ -1,5 +1,5 @@
 """
-SYNTHETIC DATA GENERATOR FOR MEDICAL NLP
+SYNTHETIC DATA GENERATOR FOR MEDICAL NLP - FIXED VERSION
 Tạo 3 file dữ liệu tổng hợp có nhãn từ 100 file test chưa nhãn
 Sử dụng Qwen2.5 qua Ollama
 
@@ -187,7 +187,7 @@ class StyleAnalyzer:
         return info_types
     
     def create_prompt(self, analysis: Dict, num_to_generate: int = 3) -> str:
-        """Tạo prompt cho Qwen"""
+        """Tạo prompt cho Qwen - ĐÃ SỬA để dễ parse hơn"""
         
         # Chọn 3 mẫu ngẫu nhiên làm few-shot
         few_shot = random.sample(self.samples, min(3, len(self.samples)))
@@ -205,36 +205,56 @@ CẤU TRÚC THƯỜNG GẶP:
             if value > 30:
                 prompt += f"- {value:.1f}% có {key.replace('_', ' ')}\n"
         
-        prompt += "\nVÍ DỤ MẪU:\n"
+        prompt += "\nVÍ DỤ MẪU (3 file ngẫu nhiên):\n"
         for idx, sample in enumerate(few_shot, 1):
             prompt += f"\n--- MẪU {idx} ---\n{sample['content'][:300]}\n"
         
         prompt += f"""
 
-YÊU CẦU: Sinh {num_to_generate} văn bản y khoa MỚI với:
+YÊU CẦU: Sinh CHÍNH XÁC {num_to_generate} văn bản y khoa MỚI với:
 1. Phong cách TƯƠNG TỰ file mẫu
 2. Độ dài ~{analysis['avg_length']:.0f} ký tự
 3. Nội dung y tế CHÍNH XÁC và ĐA DẠNG
-4. Bao gồm các loại thông tin đa dạng
+4. Bao gồm các loại thông tin: chẩn đoán, triệu chứng, thuốc, xét nghiệm
 
-QUAN TRỌNG: Với MỖI văn bản, GÁN NHÃN đầy đủ cho các khái niệm.
+QUAN TRỌNG: 
+- Với MỖI văn bản, GÁN NHÃN đầy đủ cho các khái niệm
+- Trả về DUY NHẤT 1 JSON ARRAY, KHÔNG có text khác
 
-Định dạng JSON cho MỖI file:
+Định dạng JSON CHÍNH XÁC cho MỖI file:
 {{
-    "text": "nội dung văn bản",
+    "text": "nội dung văn bản y khoa",
     "entities": [
         {{
-            "text": "tên khái niệm",
-            "type": "CHẨN_ĐOÁN|THUỐC|TRIỆU_CHỨNG|TÊN_XÉT_NGHIỆM|KẾT_QUẢ_XÉT_NGHIỆM",
-            "start": vị_trí_bắt_đầu,
-            "end": vị_trí_kết_thúc,
-            "assertions": ["isHistorical", "isFamily", "isNegated"],
-            "candidates": ["ICD-10 code"] (cho CHẨN_ĐOÁN) hoặc ["RxNorm code"] (cho THUỐC)
+            "text": "tên khái niệm (chính xác như trong text)",
+            "type": "CHẨN_ĐOÁN hoặc THUỐC hoặc TRIỆU_CHỨNG hoặc TÊN_XÉT_NGHIỆM hoặc KẾT_QUẢ_XÉT_NGHIỆM",
+            "start": vị_trí_bắt_đầu_(số_nguyên),
+            "end": vị_trí_kết_thúc_(số_nguyên),
+            "assertions": ["isHistorical"] hoặc ["isFamily"] hoặc ["isNegated"] hoặc [] (rỗng),
+            "candidates": ["ICD-10 code"] (nếu là CHẨN_ĐOÁN) hoặc ["RxNorm code"] (nếu là THUỐC) hoặc [] (rỗng)
         }}
     ]
 }}
 
-Hãy trả về JSON ARRAY chứa {num_to_generate} object.
+Ví dụ JSON đúng:
+[
+    {{
+        "text": "Bệnh nhân nam 65 tuổi bị đái tháo đường type 2",
+        "entities": [
+            {{
+                "text": "đái tháo đường type 2",
+                "type": "CHẨN_ĐOÁN",
+                "start": 29,
+                "end": 51,
+                "assertions": ["isHistorical"],
+                "candidates": ["E11.9"]
+            }}
+        ]
+    }}
+]
+
+BẮT ĐẦU JSON NGAY BÂY GIỜ (KHÔNG giải thích, KHÔNG mở đầu):
+[
 """
         return prompt
 
@@ -249,20 +269,28 @@ class OllamaClient:
         self.base_url = base_url
         self.api_url = f"{base_url}/api/generate"
         
-    def generate(self, prompt, temperature=0.8, max_tokens=2000):
+    def generate(self, prompt, temperature=0.7, max_tokens=2000):
         """Gọi Ollama sinh text"""
         payload = {
             "model": self.model_name,
             "prompt": prompt,
             "temperature": temperature,
             "stream": False,
-            "options": {"num_predict": max_tokens}
+            "options": {
+                "num_predict": max_tokens,
+                "stop": ["```"]  # Dừng khi gặp code block
+            }
         }
         
         try:
             response = requests.post(self.api_url, json=payload, timeout=180)
             response.raise_for_status()
-            return response.json().get('response', '')
+            result = response.json()
+            return result.get('response', '')
+        except requests.exceptions.Timeout:
+            print("⏰ Timeout, retrying...")
+            time.sleep(2)
+            return self.generate(prompt, temperature, max_tokens)
         except Exception as e:
             print(f"❌ Error: {e}")
             return ""
@@ -285,6 +313,7 @@ class DataGenerator:
         self.analysis = analysis
         self.ollama = OllamaClient()
         self.output_dir = Path("output")
+        self.debug_response = None
         
     def run(self):
         """Chạy toàn bộ quy trình"""
@@ -302,44 +331,197 @@ class DataGenerator:
         analyzer = StyleAnalyzer(self.samples)
         prompt = analyzer.create_prompt(self.analysis, num_to_generate=3)
         
+        # Lưu prompt để debug
+        with open("debug_prompt.txt", 'w', encoding='utf-8') as f:
+            f.write(prompt)
+        print("📝 Saved prompt to debug_prompt.txt")
+        
         print("🔄 Generating 3 new samples with Qwen2.5...")
         print("⏳ This may take 1-2 minutes...")
         
         # Sinh dữ liệu
-        response = self.ollama.generate(prompt, temperature=0.8, max_tokens=2000)
+        response = self.ollama.generate(prompt, temperature=0.7, max_tokens=2000)
+        self.debug_response = response
+        
+        # Lưu response để debug
+        with open("debug_response.txt", 'w', encoding='utf-8') as f:
+            f.write(response)
+        print("📝 Saved response to debug_response.txt")
         
         if not response:
-            print("❌ Failed to generate, using fallback")
+            print("❌ No response from Ollama")
+            print("Using fallback samples...")
             samples = self._create_fallback_samples()
         else:
-            samples = self._parse_response(response)
+            # Thử parse
+            samples = self._parse_response_improved(response)
             if not samples:
                 print("⚠️ Parse failed, using fallback")
                 samples = self._create_fallback_samples()
+            else:
+                print(f"✅ Successfully generated {len(samples)} samples")
         
         # Lưu samples
         self._save_samples(samples)
         
         return samples
     
-    def _parse_response(self, response):
-        """Parse JSON từ response"""
+    def _parse_response_improved(self, response):
+        """Parse JSON từ response - CẢI THIỆN để bắt nhiều format"""
+        
+        # Thử các cách khác nhau
+        strategies = [
+            self._extract_json_array,
+            self._extract_json_object,
+            self._extract_with_regex,
+            self._extract_multiple_objects
+        ]
+        
+        for strategy in strategies:
+            result = strategy(response)
+            if result:
+                return result
+        
+        print("❌ All parsing strategies failed")
+        print(f"Response preview: {response[:500]}...")
+        return None
+    
+    def _extract_json_array(self, text):
+        """Tìm JSON array [...]"""
         try:
-            # Tìm JSON array
-            start = response.find('[')
-            end = response.rfind(']') + 1
-            
-            if start == -1 or end == 0:
+            # Tìm từ [ đầu tiên đến ] cuối cùng
+            start = text.find('[')
+            if start == -1:
                 return None
             
-            json_str = response[start:end]
-            samples = json.loads(json_str)
+            # Đếm ngoặc để tìm đúng vị trí đóng
+            bracket_count = 0
+            end = -1
+            for i in range(start, len(text)):
+                if text[i] == '[':
+                    bracket_count += 1
+                elif text[i] == ']':
+                    bracket_count -= 1
+                    if bracket_count == 0:
+                        end = i + 1
+                        break
             
-            if isinstance(samples, list) and len(samples) >= 3:
-                return samples[:3]
-            elif isinstance(samples, dict):
-                return [samples]
+            if end == -1:
+                return None
             
+            json_str = text[start:end]
+            data = json.loads(json_str)
+            
+            if isinstance(data, list) and len(data) > 0:
+                # Kiểm tra mỗi phần tử có đủ fields
+                valid_samples = []
+                for item in data[:3]:
+                    if isinstance(item, dict) and 'text' in item:
+                        if 'entities' not in item:
+                            item['entities'] = []
+                        valid_samples.append(item)
+                
+                if valid_samples:
+                    return valid_samples[:3]
+            
+            return None
+        except:
+            return None
+    
+    def _extract_json_object(self, text):
+        """Tìm JSON object {...}"""
+        try:
+            # Tìm { từ đầu tiên
+            start = text.find('{')
+            if start == -1:
+                return None
+            
+            # Đếm ngoặc
+            bracket_count = 0
+            end = -1
+            for i in range(start, len(text)):
+                if text[i] == '{':
+                    bracket_count += 1
+                elif text[i] == '}':
+                    bracket_count -= 1
+                    if bracket_count == 0:
+                        end = i + 1
+                        break
+            
+            if end == -1:
+                return None
+            
+            json_str = text[start:end]
+            data = json.loads(json_str)
+            
+            if isinstance(data, dict) and 'text' in data:
+                if 'entities' not in data:
+                    data['entities'] = []
+                return [data]  # Trả về list với 1 object
+            
+            return None
+        except:
+            return None
+    
+    def _extract_with_regex(self, text):
+        """Dùng regex để tìm JSON"""
+        try:
+            # Tìm tất cả các cặp {...}
+            pattern = r'\{[^{}]*"text"[^{}]*"entities"[^{}]*\}'
+            matches = re.findall(pattern, text, re.DOTALL)
+            
+            samples = []
+            for match in matches[:3]:
+                try:
+                    data = json.loads(match)
+                    if 'text' in data:
+                        if 'entities' not in data:
+                            data['entities'] = []
+                        samples.append(data)
+                except:
+                    continue
+            
+            if samples:
+                return samples
+            return None
+        except:
+            return None
+    
+    def _extract_multiple_objects(self, text):
+        """Tìm nhiều JSON object trong text và ghép lại"""
+        try:
+            # Tìm tất cả các object riêng lẻ
+            objects = []
+            in_object = False
+            current = ""
+            brace_count = 0
+            
+            for char in text:
+                if char == '{':
+                    if not in_object:
+                        in_object = True
+                        current = ""
+                    brace_count += 1
+                    current += char
+                elif char == '}':
+                    brace_count -= 1
+                    current += char
+                    if brace_count == 0 and in_object:
+                        try:
+                            data = json.loads(current)
+                            if 'text' in data:
+                                if 'entities' not in data:
+                                    data['entities'] = []
+                                objects.append(data)
+                        except:
+                            pass
+                        in_object = False
+                        current = ""
+                elif in_object:
+                    current += char
+            
+            if objects:
+                return objects[:3]
             return None
         except:
             return None
@@ -469,6 +651,9 @@ def main():
         print("📄 Các file đã tạo:")
         print("   - input/1.txt, 2.txt, 3.txt")
         print("   - output/1.json, 2.json, 3.json")
+        print("\n📝 Debug files:")
+        print("   - debug_prompt.txt (prompt gửi cho Qwen)")
+        print("   - debug_response.txt (response từ Qwen)")
         print("\n✅ Bạn có thể dùng 3 file này làm dữ liệu huấn luyện!")
     else:
         print("❌ Không tạo được dữ liệu. Kiểm tra Ollama.")
