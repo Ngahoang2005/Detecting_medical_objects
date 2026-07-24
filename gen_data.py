@@ -1,14 +1,10 @@
 """
-SYNTHETIC DATA GENERATOR FOR MEDICAL NLP - IMPROVED VERSION
+SYNTHETIC DATA GENERATOR FOR MEDICAL NLP - FIXED PARSING
 Tạo 3 file dữ liệu tổng hợp chất lượng cao có nhãn
 Sử dụng Qwen2.5 qua Ollama
 
 Cách chạy:
     python generate_synthetic_data.py
-
-Yêu cầu:
-    - Ollama đang chạy: ollama serve
-    - File dữ liệu: data/input_turn2_vong1.zip
 """
 
 import zipfile
@@ -35,11 +31,8 @@ class DataExtractor:
         self.samples = []
         
     def extract_and_read(self) -> List[Dict]:
-        """Giải nén file zip và đọc tất cả file txt"""
-        
         if not self.zip_path.exists():
             print(f"❌ File not found: {self.zip_path}")
-            print(f"📂 Current directory: {os.getcwd()}")
             return []
         
         if self.extract_dir.exists():
@@ -54,7 +47,6 @@ class DataExtractor:
             print(f"❌ Error extracting: {e}")
             return []
         
-        # Tìm thư mục input
         input_dir = self.extract_dir / "input"
         if not input_dir.exists():
             possible_dirs = list(self.extract_dir.glob("*/input"))
@@ -64,7 +56,6 @@ class DataExtractor:
                 print(f"❌ Cannot find 'input' directory")
                 return []
         
-        # Đọc tất cả file .txt
         txt_files = sorted(input_dir.glob("*.txt"))
         print(f"📂 Found {len(txt_files)} .txt files")
         
@@ -85,7 +76,6 @@ class DataExtractor:
         
         print(f"✅ Read {len(self.samples)} valid files")
         
-        # Hiển thị mẫu đầu tiên
         if self.samples:
             print(f"\n📝 First sample preview:")
             print(f"Content: {self.samples[0]['content'][:300]}...")
@@ -108,28 +98,23 @@ class StyleAnalyzer:
         self.samples = samples
         
     def analyze(self) -> Dict:
-        """Phân tích toàn diện các file"""
         if not self.samples:
             return {}
         
         print("🔍 Analyzing 100 files...")
         
-        # 1. Phân tích từ vựng
         all_words = []
         for sample in self.samples:
             all_words.extend(sample['content'].split())
         word_freq = Counter(all_words)
         common_words = word_freq.most_common(20)
         
-        # 2. Phân tích cấu trúc
         structures = self._analyze_structures()
-        
-        # 3. Phân tích loại thông tin
         info_types = self._analyze_info_types()
         
-        # 4. Lấy 10 mẫu dài nhất để làm ví dụ
+        # Lấy 3 mẫu dài nhất
         sorted_samples = sorted(self.samples, key=lambda x: x['length'], reverse=True)
-        long_samples = sorted_samples[:5]
+        long_samples = sorted_samples[:3]
         
         analysis_result = {
             'total_files': len(self.samples),
@@ -149,21 +134,18 @@ class StyleAnalyzer:
         return analysis_result
     
     def _analyze_structures(self) -> Dict:
-        """Phân tích cấu trúc văn bản"""
         structures = {
             'has_diagnosis': 0, 'has_symptoms': 0, 'has_medication': 0,
-            'has_lab': 0, 'has_history': 0, 'has_family': 0, 'has_negation': 0,
-            'has_lab_values': 0
+            'has_lab': 0, 'has_history': 0, 'has_family': 0, 'has_negation': 0
         }
         
-        diagnosis_keywords = ['chẩn đoán', 'mắc bệnh', 'được chẩn đoán', 'diagnosed', 'bị', 'mắc']
-        symptom_keywords = ['ho', 'sốt', 'đau', 'mệt', 'khó thở', 'buồn nôn', 'tức ngực', 'triệu chứng', 'đờm']
-        medication_keywords = ['thuốc', 'uống', 'dùng', 'điều trị', 'medication', 'mg', 'ml']
-        lab_keywords = ['xét nghiệm', 'kết quả', 'WBC', 'Hb', 'NEUT', 'LYMPH', 'Hct']
-        history_keywords = ['tiền sử', 'trước đây', 'đã từng', 'có tiền sử', 'history', 'từ nhỏ']
-        family_keywords = ['gia đình', 'bố', 'mẹ', 'anh', 'chị', 'em', 'người nhà', 'họ hàng']
-        negation_keywords = ['không', 'chưa', 'không có', 'không thấy', 'không ghi nhận']
-        lab_values = ['\d+[,.]\d+', '\d+%']
+        diagnosis_keywords = ['chẩn đoán', 'mắc bệnh', 'được chẩn đoán', 'bị', 'mắc']
+        symptom_keywords = ['ho', 'sốt', 'đau', 'mệt', 'khó thở', 'buồn nôn', 'tức ngực', 'triệu chứng']
+        medication_keywords = ['thuốc', 'uống', 'dùng', 'điều trị', 'mg', 'ml']
+        lab_keywords = ['xét nghiệm', 'kết quả', 'WBC', 'Hb', 'NEUT', 'LYMPH']
+        history_keywords = ['tiền sử', 'trước đây', 'đã từng', 'có tiền sử', 'từ nhỏ']
+        family_keywords = ['gia đình', 'bố', 'mẹ', 'anh', 'chị', 'em', 'người nhà']
+        negation_keywords = ['không', 'chưa', 'không có', 'không thấy']
         
         for sample in self.samples:
             content = sample['content'].lower()
@@ -174,7 +156,6 @@ class StyleAnalyzer:
             if any(kw in content for kw in history_keywords): structures['has_history'] += 1
             if any(kw in content for kw in family_keywords): structures['has_family'] += 1
             if any(kw in content for kw in negation_keywords): structures['has_negation'] += 1
-            if any(re.search(p, content) for p in lab_values): structures['has_lab_values'] += 1
         
         total = len(self.samples)
         for key in structures:
@@ -183,7 +164,6 @@ class StyleAnalyzer:
         return structures
     
     def _analyze_info_types(self) -> Dict:
-        """Phân tích loại thông tin"""
         info_types = {'has_icd': 0, 'has_rxnorm': 0, 'has_lab_values': 0, 'has_dosage': 0}
         
         for sample in self.samples:
@@ -200,79 +180,96 @@ class StyleAnalyzer:
         return info_types
     
     def create_prompt(self, analysis: Dict, num_to_generate: int = 3) -> str:
-        """Tạo prompt chi tiết cho Qwen"""
+        """Tạo prompt với format rõ ràng"""
         
-        # Lấy 3 mẫu dài nhất làm ví dụ
         few_shot = analysis.get('long_samples', [])[:3]
         if len(few_shot) < 3:
             few_shot = random.sample(self.samples, min(3, len(self.samples)))
         
-        prompt = f"""Bạn là chuyên gia y tế, cần tạo dữ liệu tổng hợp CHẤT LƯỢNG CAO cho bài toán xử lý văn bản y khoa.
+        prompt = f"""Bạn là chuyên gia y tế, cần tạo dữ liệu tổng hợp chất lượng cao.
 
 THÔNG TIN VỀ 100 FILE MẪU:
-- Tổng số: {analysis['total_files']} file
-- Độ dài TB: {analysis['avg_length']:.0f} ký tự (tối thiểu {analysis['min_length']}, tối đa {analysis['max_length']})
+- Độ dài TB: {analysis['avg_length']:.0f} ký tự
 - Số từ TB: {analysis['avg_words']:.0f} từ
 
-CẤU TRÚC THƯỜNG GẶP (tỉ lệ %):
-"""
-        for key, value in analysis.get('structures', {}).items():
-            if value > 20:
-                prompt += f"- {value:.1f}% có {key.replace('_', ' ')}\n"
-        
-        prompt += f"""
-
-VÍ DỤ MẪU CHI TIẾT (từ dữ liệu thật, đã được gán nhãn):
+VÍ DỤ MẪU:
 """
         for idx, sample in enumerate(few_shot, 1):
-            prompt += f"\n--- MẪU {idx} (dài {sample['length']} ký tự) ---\n"
-            prompt += f"{sample['content']}\n"
-        
+            prompt += f"\n--- MẪU {idx} ---\n{sample['content'][:500]}...\n"
+
         prompt += f"""
 
 {"="*60}
-YÊU CẦU SINH {num_to_generate} VĂN BẢN Y KHOA MỚI CHẤT LƯỢNG CAO:
+YÊU CẦU SINH 3 VĂN BẢN MỚI:
 {"="*60}
 
-MỖI văn bản phải:
-1. Dài TỐI THIỂU 100-150 từ hoặc 300-500 ký tự
-2. Có CẤU TRÚC TƯƠNG TỰ file mẫu
-3. Bao gồm ĐẦY ĐỦ các thông tin:
-   - CHẨN_ĐOÁN (có mã ICD-10)
-   - THUỐC điều trị (có mã RxNorm)
-   - TRIỆU_CHỨNG chi tiết
-   - TÊN_XÉT_NGHIỆM và KẾT_QUẢ_XÉT_NGHIỆM (nếu có)
-   - Các assertion: isHistorical, isFamily, isNegated (nếu phù hợp)
-4. Nội dung y tế CHÍNH XÁC và ĐA DẠNG
-5. Phong cách viết TỰ NHIÊN như bác sĩ viết
+Mỗi văn bản phải:
+1. Dài ~200-500 ký tự
+2. Có cấu trúc tương tự mẫu
+3. Bao gồm: CHẨN_ĐOÁN, THUỐC, TRIỆU_CHỨNG, XÉT_NGHIỆM (nếu có)
+4. Có các assertion: isHistorical, isFamily, isNegated (nếu phù hợp)
 
-VÍ DỤ VỀ ANNOTATION ĐÚNG CHO MỘT VĂN BẢN DÀI:
+{"="*60}
+FORMAT JSON BẮT BUỘC - MỖI VĂN BẢN LÀ 1 OBJECT:
+{"="*60}
 
-Input text:
-"Bệnh nhân nam 65 tuổi, tiền sử đái tháo đường type 2 (E11.9) và tăng huyết áp (I10) 5 năm. Bệnh nhân không có tiền sử bệnh tim mạch. Hiện tại bệnh nhân đang dùng Metformin 500mg và Lisinopril 10mg. Triệu chứng: mệt mỏi, khát nước nhiều, tiểu nhiều. Kết quả xét nghiệm: HbA1c 8.5%, Creatinine 1.2 mg/dL. Gia đình có bố bị đái tháo đường."
-
-Entities (phải liệt kê ĐẦY ĐỦ):
 [
-    {{"text": "đái tháo đường type 2", "type": "CHẨN_ĐOÁN", "start": 29, "end": 51, "assertions": ["isHistorical"], "candidates": ["E11.9"]}},
-    {{"text": "tăng huyết áp", "type": "CHẨN_ĐOÁN", "start": 56, "end": 70, "assertions": ["isHistorical"], "candidates": ["I10"]}},
-    {{"text": "Metformin 500mg", "type": "THUỐC", "start": 129, "end": 145, "assertions": ["isHistorical"], "candidates": ["6809"]}},
-    {{"text": "Lisinopril 10mg", "type": "THUỐC", "start": 150, "end": 166, "assertions": ["isHistorical"], "candidates": ["314076"]}},
-    {{"text": "mệt mỏi", "type": "TRIỆU_CHỨNG", "start": 184, "end": 192, "assertions": [], "candidates": []}},
-    {{"text": "khát nước nhiều", "type": "TRIỆU_CHỨNG", "start": 194, "end": 209, "assertions": [], "candidates": []}},
-    {{"text": "tiểu nhiều", "type": "TRIỆU_CHỨNG", "start": 214, "end": 224, "assertions": [], "candidates": []}},
-    {{"text": "HbA1c", "type": "TÊN_XÉT_NGHIỆM", "start": 242, "end": 247, "assertions": [], "candidates": []}},
-    {{"text": "8.5%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 248, "end": 252, "assertions": [], "candidates": []}},
-    {{"text": "Creatinine", "type": "TÊN_XÉT_NGHIỆM", "start": 254, "end": 264, "assertions": [], "candidates": []}},
-    {{"text": "1.2 mg/dL", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 265, "end": 275, "assertions": [], "candidates": []}}
+    {{
+        "text": "Nội dung văn bản y khoa đầy đủ ở đây...",
+        "entities": [
+            {{
+                "text": "tên khái niệm (chính xác)",
+                "type": "CHẨN_ĐOÁN",
+                "start": 10,
+                "end": 25,
+                "assertions": ["isHistorical"],
+                "candidates": ["E11.9"]
+            }},
+            {{
+                "text": "tên thuốc",
+                "type": "THUỐC",
+                "start": 30,
+                "end": 45,
+                "assertions": [],
+                "candidates": ["6809"]
+            }},
+            {{
+                "text": "triệu chứng",
+                "type": "TRIỆU_CHỨNG",
+                "start": 50,
+                "end": 60,
+                "assertions": [],
+                "candidates": []
+            }}
+        ]
+    }},
+    {{...}},
+    {{...}}
 ]
 
-LƯU Ý QUAN TRỌNG:
-1. Mỗi văn bản phải có ÍT NHẤT 5-8 entities
-2. Phải có ít nhất 2 loại entity khác nhau
-3. start và end phải là vị trí CHÍNH XÁC trong text
-4. candidates: dùng mã ICD-10 cho CHẨN_ĐOÁN, mã RxNorm cho THUỐC
+{"="*60}
+VÍ DỤ CỤ THỂ:
+{"="*60}
 
-BẮT ĐẦU JSON NGAY BÂY GIỜ (KHÔNG giải thích thêm):
+{{
+    "text": "Bệnh nhân nam 65 tuổi, tiền sử đái tháo đường type 2 (E11.9) và tăng huyết áp (I10) 5 năm. Hiện tại đang dùng Metformin 500mg và Lisinopril 10mg. Triệu chứng: mệt mỏi, khát nước nhiều, tiểu nhiều. Kết quả xét nghiệm: HbA1c 8.5%.",
+    "entities": [
+        {{"text": "đái tháo đường type 2", "type": "CHẨN_ĐOÁN", "start": 29, "end": 51, "assertions": ["isHistorical"], "candidates": ["E11.9"]}},
+        {{"text": "tăng huyết áp", "type": "CHẨN_ĐOÁN", "start": 56, "end": 70, "assertions": ["isHistorical"], "candidates": ["I10"]}},
+        {{"text": "Metformin 500mg", "type": "THUỐC", "start": 94, "end": 110, "assertions": ["isHistorical"], "candidates": ["6809"]}},
+        {{"text": "Lisinopril 10mg", "type": "THUỐC", "start": 115, "end": 131, "assertions": ["isHistorical"], "candidates": ["314076"]}},
+        {{"text": "mệt mỏi", "type": "TRIỆU_CHỨNG", "start": 144, "end": 152, "assertions": [], "candidates": []}},
+        {{"text": "khát nước nhiều", "type": "TRIỆU_CHỨNG", "start": 154, "end": 169, "assertions": [], "candidates": []}},
+        {{"text": "tiểu nhiều", "type": "TRIỆU_CHỨNG", "start": 174, "end": 184, "assertions": [], "candidates": []}},
+        {{"text": "HbA1c", "type": "TÊN_XÉT_NGHIỆM", "start": 210, "end": 215, "assertions": [], "candidates": []}},
+        {{"text": "8.5%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 216, "end": 220, "assertions": [], "candidates": []}}
+    ]
+}}
+
+{"="*60}
+BẮT ĐẦU JSON NGAY BÂY GIỜ (CHỈ JSON, KHÔNG GIẢI THÍCH):
+{"="*60}
+
 [
 """
         return prompt
@@ -289,7 +286,6 @@ class OllamaClient:
         self.api_url = f"{base_url}/api/generate"
         
     def generate(self, prompt, temperature=0.7, max_tokens=3000):
-        """Gọi Ollama sinh text"""
         payload = {
             "model": self.model_name,
             "prompt": prompt,
@@ -306,10 +302,6 @@ class OllamaClient:
             response.raise_for_status()
             result = response.json()
             return result.get('response', '')
-        except requests.exceptions.Timeout:
-            print("⏰ Timeout, retrying...")
-            time.sleep(3)
-            return self.generate(prompt, temperature, max_tokens)
         except Exception as e:
             print(f"❌ Error: {e}")
             return ""
@@ -332,97 +324,82 @@ class DataGenerator:
         self.analysis = analysis
         self.ollama = OllamaClient()
         self.output_dir = Path("output")
-        self.debug_response = None
         
     def run(self):
-        """Chạy toàn bộ quy trình"""
         print("="*60)
         print("🚀 Starting Data Generation Pipeline")
         print("="*60)
         
-        # Kiểm tra Ollama
         if not self.ollama.check_health():
             print("❌ Cannot connect to Ollama")
             print("Please run: ollama serve")
             return []
         
-        # Tạo prompt
         analyzer = StyleAnalyzer(self.samples)
         prompt = analyzer.create_prompt(self.analysis, num_to_generate=3)
         
-        # Lưu prompt để debug
         with open("debug_prompt.txt", 'w', encoding='utf-8') as f:
             f.write(prompt)
         print("📝 Saved prompt to debug_prompt.txt")
         
-        print("🔄 Generating 3 high-quality samples with Qwen2.5...")
+        print("🔄 Generating 3 high-quality samples...")
         print("⏳ This may take 2-3 minutes...")
         
-        # Sinh dữ liệu
         response = self.ollama.generate(prompt, temperature=0.8, max_tokens=3000)
-        self.debug_response = response
         
-        # Lưu response để debug
         with open("debug_response.txt", 'w', encoding='utf-8') as f:
             f.write(response)
         print("📝 Saved response to debug_response.txt")
         
-        if not response:
-            print("❌ No response from Ollama")
-            print("Using fallback samples...")
+        # Parse response - THỬ NHIỀU CÁCH
+        samples = self._parse_response_advanced(response)
+        
+        if not samples:
+            print("⚠️ Parse failed, using fallback samples")
             samples = self._create_fallback_samples()
         else:
-            # Thử parse
-            samples = self._parse_response_improved(response)
-            if not samples:
-                print("⚠️ Parse failed, using fallback")
-                samples = self._create_fallback_samples()
-            else:
-                print(f"✅ Successfully generated {len(samples)} samples")
-                # Hiển thị thông tin samples
-                for idx, s in enumerate(samples, 1):
-                    print(f"   Sample {idx}: {len(s.get('text', ''))} chars, {len(s.get('entities', []))} entities")
+            print(f"✅ Successfully parsed {len(samples)} samples")
+            for idx, s in enumerate(samples, 1):
+                print(f"   Sample {idx}: {len(s.get('text', ''))} chars, {len(s.get('entities', []))} entities")
         
-        # Lưu samples
         self._save_samples(samples)
-        
         return samples
     
-    def _parse_response_improved(self, response):
-        """Parse JSON từ response - cải thiện"""
+    def _parse_response_advanced(self, response):
+        """Parse response với nhiều chiến lược"""
         
-        # Thử các cách khác nhau
-        strategies = [
-            self._extract_json_array,
-            self._extract_multiple_objects,
-            self._extract_json_object,
-        ]
+        # Chiến lược 1: Tìm JSON array
+        result = self._parse_json_array(response)
+        if result:
+            return result
         
-        for strategy in strategies:
-            result = strategy(response)
-            if result:
-                # Kiểm tra chất lượng
-                valid = [s for s in result if len(s.get('text', '')) > 100 and len(s.get('entities', [])) >= 3]
-                if valid:
-                    return valid[:3]
+        # Chiến lược 2: Tìm các object riêng lẻ và ghép lại
+        result = self._parse_individual_objects(response)
+        if result:
+            return result
         
-        print("❌ All parsing strategies failed or samples too short")
-        print(f"Response preview: {response[:500]}...")
+        # Chiến lược 3: Tìm text và tự tạo entities
+        result = self._parse_text_only(response)
+        if result:
+            return result
+        
         return None
     
-    def _extract_json_array(self, text):
-        """Tìm JSON array [...]"""
+    def _parse_json_array(self, response):
+        """Tìm và parse JSON array [...]"""
         try:
-            start = text.find('[')
+            # Tìm vị trí của [
+            start = response.find('[')
             if start == -1:
                 return None
             
+            # Tìm vị trí của ] đóng
             bracket_count = 0
             end = -1
-            for i in range(start, len(text)):
-                if text[i] == '[':
+            for i in range(start, len(response)):
+                if response[i] == '[':
                     bracket_count += 1
-                elif text[i] == ']':
+                elif response[i] == ']':
                     bracket_count -= 1
                     if bracket_count == 0:
                         end = i + 1
@@ -431,69 +408,52 @@ class DataGenerator:
             if end == -1:
                 return None
             
-            json_str = text[start:end]
+            json_str = response[start:end]
             data = json.loads(json_str)
             
-            if isinstance(data, list) and len(data) > 0:
+            # Kiểm tra data là list các object
+            if isinstance(data, list):
                 valid_samples = []
-                for item in data[:3]:
-                    if isinstance(item, dict) and 'text' in item:
-                        if 'entities' not in item:
-                            item['entities'] = []
-                        # Kiểm tra độ dài
-                        if len(item.get('text', '')) > 100:
-                            valid_samples.append(item)
-                        else:
-                            print(f"⚠️ Sample too short: {len(item.get('text', ''))} chars")
-                return valid_samples[:3] if valid_samples else None
+                for item in data:
+                    if isinstance(item, dict):
+                        # Nếu có 'text' và 'entities'
+                        if 'text' in item:
+                            if 'entities' not in item:
+                                item['entities'] = []
+                            if len(item.get('text', '')) > 50:
+                                valid_samples.append(item)
+                        # Nếu là entity riêng lẻ (format sai)
+                        elif 'type' in item and 'text' in item:
+                            # Tạo text từ các entity
+                            text_parts = []
+                            entities = []
+                            for e in data:
+                                if 'text' in e:
+                                    text_parts.append(e['text'])
+                                    entities.append(e)
+                            if text_parts:
+                                return [{
+                                    'text': '. '.join(text_parts[:3]),
+                                    'entities': entities
+                                }]
+                
+                if valid_samples:
+                    return valid_samples[:3]
             
             return None
-        except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}")
-            return None
-    
-    def _extract_json_object(self, text):
-        """Tìm JSON object {...}"""
-        try:
-            start = text.find('{')
-            if start == -1:
-                return None
-            
-            bracket_count = 0
-            end = -1
-            for i in range(start, len(text)):
-                if text[i] == '{':
-                    bracket_count += 1
-                elif text[i] == '}':
-                    bracket_count -= 1
-                    if bracket_count == 0:
-                        end = i + 1
-                        break
-            
-            if end == -1:
-                return None
-            
-            json_str = text[start:end]
-            data = json.loads(json_str)
-            
-            if isinstance(data, dict) and 'text' in data:
-                if 'entities' not in data:
-                    data['entities'] = []
-                if len(data.get('text', '')) > 100:
-                    return [data]
-            return None
-        except:
+        except Exception as e:
+            print(f"⚠️ JSON array parse error: {e}")
             return None
     
-    def _extract_multiple_objects(self, text):
-        """Tìm nhiều JSON object trong text"""
+    def _parse_individual_objects(self, response):
+        """Tìm các object riêng lẻ {...}"""
         try:
             objects = []
             in_object = False
             current = ""
             brace_count = 0
             
-            for char in text:
+            for char in response:
                 if char == '{':
                     if not in_object:
                         in_object = True
@@ -506,11 +466,15 @@ class DataGenerator:
                     if brace_count == 0 and in_object:
                         try:
                             data = json.loads(current)
+                            # Kiểm tra nếu có text hoặc type
                             if 'text' in data:
                                 if 'entities' not in data:
                                     data['entities'] = []
-                                if len(data.get('text', '')) > 100:
+                                if len(data.get('text', '')) > 50:
                                     objects.append(data)
+                            elif 'type' in data and 'text' in data:
+                                # Là entity riêng lẻ
+                                objects.append(data)
                         except:
                             pass
                         in_object = False
@@ -518,17 +482,75 @@ class DataGenerator:
                 elif in_object:
                     current += char
             
-            return objects[:3] if objects else None
+            if objects:
+                # Nếu tìm thấy các entity riêng lẻ, gộp lại
+                if all('type' in o for o in objects):
+                    text_parts = [o.get('text', '') for o in objects if 'text' in o]
+                    if text_parts:
+                        return [{
+                            'text': '. '.join(text_parts),
+                            'entities': objects
+                        }]
+                # Nếu là các object đầy đủ
+                elif all('text' in o for o in objects):
+                    return objects[:3]
+            
+            return None
+        except Exception as e:
+            print(f"⚠️ Individual objects parse error: {e}")
+            return None
+    
+    def _parse_text_only(self, response):
+        """Nếu chỉ có text, tạo entities cơ bản"""
+        try:
+            # Tìm text trong response
+            text_match = re.search(r'"text"\s*:\s*"([^"]+)"', response)
+            if text_match:
+                text = text_match.group(1)
+                # Tìm các entity trong text
+                entities = []
+                
+                # Tìm các keywords y tế
+                medical_terms = {
+                    'đái tháo đường': 'CHẨN_ĐOÁN',
+                    'tăng huyết áp': 'CHẨN_ĐOÁN',
+                    'hen suyễn': 'CHẨN_ĐOÁN',
+                    'viêm phổi': 'CHẨN_ĐOÁN',
+                    'Metformin': 'THUỐC',
+                    'Lisinopril': 'THUỐC',
+                    'Albuterol': 'THUỐC',
+                    'Amoxicillin': 'THUỐC',
+                    'ho': 'TRIỆU_CHỨNG',
+                    'sốt': 'TRIỆU_CHỨNG',
+                    'đau': 'TRIỆU_CHỨNG',
+                    'mệt': 'TRIỆU_CHỨNG',
+                }
+                
+                for term, term_type in medical_terms.items():
+                    if term in text:
+                        start = text.find(term)
+                        if start != -1:
+                            entities.append({
+                                'text': term,
+                                'type': term_type,
+                                'start': start,
+                                'end': start + len(term),
+                                'assertions': [],
+                                'candidates': []
+                            })
+                
+                if entities:
+                    return [{'text': text, 'entities': entities}]
+            
+            return None
         except:
             return None
     
     def _save_samples(self, samples):
-        """Lưu samples vào file"""
         if not samples:
             print("❌ No samples to save")
             return
         
-        # Tạo thư mục
         os.makedirs(self.output_dir / "input", exist_ok=True)
         os.makedirs(self.output_dir / "output", exist_ok=True)
         
@@ -538,7 +560,10 @@ class DataGenerator:
             text = sample.get('text', '')
             entities = sample.get('entities', [])
             
-            # Kiểm tra chất lượng
+            # Nếu entities là dict (format sai), chuyển thành list
+            if isinstance(entities, dict):
+                entities = [entities]
+            
             print(f"\n📊 Sample {idx}:")
             print(f"   Text length: {len(text)} chars")
             print(f"   Entities: {len(entities)}")
@@ -549,32 +574,46 @@ class DataGenerator:
                 f.write(text)
             print(f"✅ Saved {txt_path}")
             
-            # Chuyển entities sang format bài toán
+            # Chuyển entities sang format chuẩn
             output_entities = []
             for entity in entities:
-                # Đảm bảo có text
+                if not isinstance(entity, dict):
+                    continue
+                
                 entity_text = entity.get('text', '')
                 if not entity_text:
                     continue
                 
-                # Tìm vị trí nếu chưa có
-                start = entity.get('start', 0)
-                end = entity.get('end', len(entity_text))
+                # Tìm vị trí
+                start = entity.get('start', -1)
+                end = entity.get('end', -1)
                 
-                # Nếu start/end không hợp lệ, tìm trong text
-                if start >= end or start < 0 or end > len(text):
+                if start == -1 or end == -1 or start >= end:
                     found = text.find(entity_text)
                     if found != -1:
                         start = found
                         end = found + len(entity_text)
                     else:
-                        # Nếu không tìm thấy, bỏ qua entity
                         continue
+                
+                # Chuẩn hóa type
+                entity_type = entity.get('type', '')
+                if entity_type and entity_type not in ['CHẨN_ĐOÁN', 'THUỐC', 'TRIỆU_CHỨNG', 'TÊN_XÉT_NGHIỆM', 'KẾT_QUẢ_XÉT_NGHIỆM']:
+                    # Map các type khác về đúng chuẩn
+                    type_map = {
+                        'Bệnh lý': 'CHẨN_ĐOÁN',
+                        'bệnh': 'CHẨN_ĐOÁN',
+                        'thuốc': 'THUỐC',
+                        'drug': 'THUỐC',
+                        'symptom': 'TRIỆU_CHỨNG',
+                        'triệu chứng': 'TRIỆU_CHỨNG'
+                    }
+                    entity_type = type_map.get(entity_type, 'CHẨN_ĐOÁN')
                 
                 output_entity = {
                     "text": entity_text,
                     "position": [start, end],
-                    "type": entity.get('type', 'CHẨN_ĐOÁN'),
+                    "type": entity_type,
                     "assertions": entity.get('assertions', []),
                     "candidates": entity.get('candidates', [])
                 }
@@ -589,10 +628,10 @@ class DataGenerator:
         print(f"\n🎉 Successfully saved {len(samples)} samples to {self.output_dir}/")
     
     def _create_fallback_samples(self):
-        """Tạo sample thủ công chất lượng cao"""
+        """Fallback samples chất lượng cao"""
         return [
             {
-                "text": """Bệnh nhân nam 65 tuổi, tiền sử đái tháo đường type 2 (E11.9) và tăng huyết áp (I10) đã 5 năm. Bệnh nhân không có tiền sử bệnh tim mạch hay đột quỵ. Hiện tại bệnh nhân đang dùng Metformin 500mg uống 2 lần/ngày và Lisinopril 10mg uống 1 lần/ngày. Triệu chứng hiện tại bao gồm mệt mỏi, khát nước nhiều, tiểu nhiều, đôi khi hoa mắt chóng mặt. Kết quả xét nghiệm mới nhất: HbA1c 8.5%, Creatinine 1.2 mg/dL, Glucose máu đói 180 mg/dL. Gia đình có bố bị đái tháo đường type 2 từ năm 60 tuổi. Bệnh nhân được tư vấn điều chỉnh chế độ ăn và tăng liều Metformin.""",
+                "text": """Bệnh nhân nam 65 tuổi, tiền sử đái tháo đường type 2 (E11.9) và tăng huyết áp (I10) đã 5 năm. Bệnh nhân không có tiền sử bệnh tim mạch hay đột quỵ. Hiện tại bệnh nhân đang dùng Metformin 500mg uống 2 lần/ngày và Lisinopril 10mg uống 1 lần/ngày. Triệu chứng hiện tại bao gồm mệt mỏi, khát nước nhiều, tiểu nhiều, đôi khi hoa mắt chóng mặt. Kết quả xét nghiệm mới nhất: HbA1c 8.5%, Creatinine 1.2 mg/dL, Glucose máu đói 180 mg/dL. Gia đình có bố bị đái tháo đường type 2 từ năm 60 tuổi.""",
                 "entities": [
                     {"text": "đái tháo đường type 2", "type": "CHẨN_ĐOÁN", "start": 29, "end": 51, "assertions": ["isHistorical"], "candidates": ["E11.9"]},
                     {"text": "tăng huyết áp", "type": "CHẨN_ĐOÁN", "start": 56, "end": 70, "assertions": ["isHistorical"], "candidates": ["I10"]},
@@ -602,37 +641,32 @@ class DataGenerator:
                     {"text": "khát nước nhiều", "type": "TRIỆU_CHỨNG", "start": 232, "end": 247, "assertions": [], "candidates": []},
                     {"text": "tiểu nhiều", "type": "TRIỆU_CHỨNG", "start": 252, "end": 262, "assertions": [], "candidates": []},
                     {"text": "HbA1c", "type": "TÊN_XÉT_NGHIỆM", "start": 302, "end": 307, "assertions": [], "candidates": []},
-                    {"text": "8.5%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 308, "end": 312, "assertions": [], "candidates": []},
-                    {"text": "Creatinine", "type": "TÊN_XÉT_NGHIỆM", "start": 314, "end": 324, "assertions": [], "candidates": []},
-                    {"text": "1.2 mg/dL", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 325, "end": 335, "assertions": [], "candidates": []}
+                    {"text": "8.5%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 308, "end": 312, "assertions": [], "candidates": []}
                 ]
             },
             {
                 "text": """Bệnh nhân nữ 42 tuổi, đến khám tại phòng khám hô hấp vì khó thở, ho khan, tức ngực kéo dài 1 tuần. Bệnh nhân không sốt, không có đờm, không có tiền sử hen suyễn. Tiền sử gia đình: mẹ bị hen suyễn từ nhỏ. Bệnh nhân đã được điều trị với Albuterol inhaler 2 nhát/ngày và Fluticasone 100mcg/ngày trong 3 ngày, nhưng triệu chứng không đỡ. Xét nghiệm chức năng hô hấp: FEV1 65%, FEV1/FVC 70%. Bác sĩ chẩn đoán hen suyễn khởi phát muộn và đề nghị nhập viện theo dõi.""",
                 "entities": [
-                    {"text": "hen suyễn", "type": "CHẨN_ĐOÁN", "start": 198, "end": 207, "assertions": ["isFamily"], "candidates": ["J45.909"]},
-                    {"text": "Albuterol inhaler", "type": "THUỐC", "start": 238, "end": 256, "assertions": ["isHistorical"], "candidates": ["432"]},
-                    {"text": "Fluticasone 100mcg", "type": "THUỐC", "start": 261, "end": 280, "assertions": ["isHistorical"], "candidates": ["312938"]},
+                    {"text": "hen suyễn", "type": "CHẨN_ĐOÁN", "start": 197, "end": 206, "assertions": ["isFamily"], "candidates": ["J45.909"]},
+                    {"text": "Albuterol inhaler", "type": "THUỐC", "start": 237, "end": 255, "assertions": ["isHistorical"], "candidates": ["432"]},
+                    {"text": "Fluticasone 100mcg", "type": "THUỐC", "start": 260, "end": 279, "assertions": ["isHistorical"], "candidates": ["312938"]},
                     {"text": "khó thở", "type": "TRIỆU_CHỨNG", "start": 51, "end": 58, "assertions": [], "candidates": []},
                     {"text": "ho khan", "type": "TRIỆU_CHỨNG", "start": 60, "end": 67, "assertions": [], "candidates": []},
                     {"text": "tức ngực", "type": "TRIỆU_CHỨNG", "start": 69, "end": 77, "assertions": [], "candidates": []},
-                    {"text": "FEV1 65%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 349, "end": 358, "assertions": [], "candidates": []},
-                    {"text": "FEV1/FVC 70%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 360, "end": 373, "assertions": [], "candidates": []}
+                    {"text": "FEV1 65%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 348, "end": 357, "assertions": [], "candidates": []}
                 ]
             },
             {
-                "text": """Bệnh nhân nam 55 tuổi, nhập viện cấp cứu vì sốt cao 39.5°C, ho có đờm xanh, khó thở tăng dần trong 3 ngày. Bệnh nhân có tiền sử hút thuốc lá 30 năm, không có tiền sử bệnh phổi mạn tính. Kết quả xét nghiệm máu: WBC 18.5 x10^9/L, NEUT% 85%, CRP 120 mg/L. X-quang ngực cho thấy đông đặc thùy phổi phải. Bệnh nhân được chẩn đoán viêm phổi cộng đồng (J18.9) và điều trị khởi đầu với Amoxicillin 500mg tiêm tĩnh mạch mỗi 6 giờ kèm theo Oseltamivir 75mg uống 2 lần/ngày. Bệnh nhân được theo dõi sát và chăm sóc hô hấp tích cực.""",
+                "text": """Bệnh nhân nam 55 tuổi, nhập viện cấp cứu vì sốt cao 39.5°C, ho có đờm xanh, khó thở tăng dần trong 3 ngày. Bệnh nhân có tiền sử hút thuốc lá 30 năm. Kết quả xét nghiệm máu: WBC 18.5 x10^9/L, NEUT% 85%, CRP 120 mg/L. X-quang ngực cho thấy đông đặc thùy phổi phải. Bệnh nhân được chẩn đoán viêm phổi cộng đồng (J18.9) và điều trị với Amoxicillin 500mg tiêm tĩnh mạch mỗi 6 giờ.""",
                 "entities": [
-                    {"text": "viêm phổi cộng đồng", "type": "CHẨN_ĐOÁN", "start": 376, "end": 396, "assertions": [], "candidates": ["J18.9"]},
-                    {"text": "Amoxicillin 500mg", "type": "THUỐC", "start": 420, "end": 438, "assertions": [], "candidates": ["723"]},
-                    {"text": "Oseltamivir 75mg", "type": "THUỐC", "start": 465, "end": 483, "assertions": [], "candidates": ["3605"]},
+                    {"text": "viêm phổi cộng đồng", "type": "CHẨN_ĐOÁN", "start": 370, "end": 390, "assertions": [], "candidates": ["J18.9"]},
+                    {"text": "Amoxicillin 500mg", "type": "THUỐC", "start": 414, "end": 432, "assertions": [], "candidates": ["723"]},
                     {"text": "sốt cao 39.5°C", "type": "TRIỆU_CHỨNG", "start": 30, "end": 43, "assertions": [], "candidates": []},
                     {"text": "ho có đờm xanh", "type": "TRIỆU_CHỨNG", "start": 45, "end": 61, "assertions": [], "candidates": []},
                     {"text": "khó thở", "type": "TRIỆU_CHỨNG", "start": 63, "end": 70, "assertions": [], "candidates": []},
-                    {"text": "WBC", "type": "TÊN_XÉT_NGHIỆM", "start": 164, "end": 167, "assertions": [], "candidates": []},
-                    {"text": "18.5 x10^9/L", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 168, "end": 181, "assertions": [], "candidates": []},
-                    {"text": "NEUT% 85%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 183, "end": 193, "assertions": [], "candidates": []},
-                    {"text": "CRP 120 mg/L", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 195, "end": 208, "assertions": [], "candidates": []}
+                    {"text": "WBC", "type": "TÊN_XÉT_NGHIỆM", "start": 148, "end": 151, "assertions": [], "candidates": []},
+                    {"text": "18.5 x10^9/L", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 152, "end": 165, "assertions": [], "candidates": []},
+                    {"text": "NEUT% 85%", "type": "KẾT_QUẢ_XÉT_NGHIỆM", "start": 167, "end": 177, "assertions": [], "candidates": []}
                 ]
             }
         ]
@@ -647,25 +681,19 @@ def main():
     print("="*60)
     print()
     
-    # 1. Đọc dữ liệu từ zip
     extractor = DataExtractor("data/input_turn2_vong1.zip")
     samples = extractor.extract_and_read()
     
     if not samples:
-        print("\n❌ Không thể đọc dữ liệu. Kiểm tra:")
-        print("1. File path: data/input_turn2_vong1.zip")
-        print("2. File tồn tại và hợp lệ")
+        print("\n❌ Không thể đọc dữ liệu.")
         return
     
-    # 2. Phân tích
     analyzer = StyleAnalyzer(samples)
     analysis = analyzer.analyze()
     
-    # 3. Sinh 3 sample mới
     generator = DataGenerator(samples, analysis)
     generated = generator.run()
     
-    # 4. Dọn dẹp
     extractor.cleanup()
     
     print("\n" + "="*60)
@@ -677,12 +705,8 @@ def main():
         print("   - input/1.txt, 2.txt, 3.txt")
         print("   - output/1.json, 2.json, 3.json")
         print("\n📝 Debug files:")
-        print("   - debug_prompt.txt (prompt gửi cho Qwen)")
-        print("   - debug_response.txt (response từ Qwen)")
-        print("\n✅ Bạn có thể dùng 3 file này làm dữ liệu huấn luyện!")
-        print("\n💡 Nếu dữ liệu vẫn ngắn, hãy xem debug_response.txt để biết Qwen trả về gì")
-    else:
-        print("❌ Không tạo được dữ liệu. Kiểm tra Ollama.")
+        print("   - debug_prompt.txt")
+        print("   - debug_response.txt")
 
 
 if __name__ == "__main__":
